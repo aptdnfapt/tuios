@@ -10,9 +10,43 @@ import (
 	"github.com/Gaurav-Gosain/tuios/internal/config"
 )
 
+// handleSidebarInput handles keyboard input when sidebar is focused
+func handleSidebarInput(msg tea.KeyPressMsg, o *app.OS) (*app.OS, tea.Cmd) {
+	key := msg.String()
+
+	switch key {
+	case "up", "k":
+		o.SidebarSelectPrev()
+		return o, nil
+	case "down", "j":
+		o.SidebarSelectNext()
+		return o, nil
+	case "enter", " ":
+		o.SidebarConfirmSelection()
+		return o, nil
+	case "esc", "q":
+		o.CloseSidebar()
+		return o, nil
+	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+		// Quick jump to window by number
+		num := int(key[0] - '0')
+		if num > 0 && num <= len(o.Windows) {
+			o.SidebarSelectedIndex = num - 1
+			o.SidebarConfirmSelection()
+		}
+		return o, nil
+	}
+	return o, nil
+}
+
 // HandleTerminalModeKey handles keyboard input in terminal mode
 func HandleTerminalModeKey(msg tea.KeyPressMsg, o *app.OS) (*app.OS, tea.Cmd) {
 	focusedWindow := o.GetFocusedWindow()
+
+	// Handle sidebar navigation (takes priority when sidebar is focused)
+	if o.SidebarVisible && o.SidebarFocused {
+		return handleSidebarInput(msg, o)
+	}
 
 	// Handle help menu first (takes priority over everything in terminal mode)
 	if o.ShowHelp {
@@ -706,6 +740,10 @@ func handleTerminalPrefixCommand(msg tea.KeyPressMsg, o *app.OS) (*app.OS, tea.C
 			o.ShowNotification("Splits Equalized", "info", config.NotificationDuration)
 		}
 		return o, nil
+	case "b":
+		// Toggle sidebar (browser-style window list)
+		o.ToggleSidebar()
+		return o, nil
 	case "[":
 		// Enter copy mode (vim-style scrollback/selection)
 		if focusedWindow := o.GetFocusedWindow(); focusedWindow != nil {
@@ -791,6 +829,11 @@ func handleTerminalWindowSelection(msg tea.KeyPressMsg, o *app.OS) (*app.OS, tea
 // HandleWindowManagementModeKey handles keyboard input in window management mode
 func HandleWindowManagementModeKey(msg tea.KeyPressMsg, o *app.OS) (*app.OS, tea.Cmd) {
 	focusedWindow := o.GetFocusedWindow()
+
+	// Handle sidebar navigation (takes priority when sidebar is focused)
+	if o.SidebarVisible && o.SidebarFocused {
+		return handleSidebarInput(msg, o)
+	}
 
 	// Handle copy mode (vim-style scrollback/selection) - takes priority
 	if focusedWindow != nil && focusedWindow.CopyMode != nil && focusedWindow.CopyMode.Active {

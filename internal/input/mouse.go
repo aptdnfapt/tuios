@@ -85,6 +85,38 @@ func handleMouseClick(msg tea.MouseClickMsg, o *app.OS) (*app.OS, tea.Cmd) {
 	X := mouse.X
 	Y := mouse.Y
 
+	// Check if click is in the sidebar area
+	if o.SidebarVisible {
+		sidebarWidth := o.GetSidebarWidth()
+		if X < sidebarWidth {
+			// Click is within sidebar - check for window item click
+			windowIdx := o.FindSidebarItemClicked(X, Y)
+			if windowIdx >= 0 && windowIdx < len(o.Windows) {
+				clickedWindow := o.Windows[windowIdx]
+				// Switch to window's workspace if different
+				if clickedWindow.Workspace != o.CurrentWorkspace {
+					o.SwitchToWorkspace(clickedWindow.Workspace)
+				}
+				// Restore if minimized
+				if clickedWindow.Minimized {
+					o.RestoreWindow(windowIdx)
+					if o.AutoTiling {
+						o.TileAllWindows()
+					}
+				}
+				// Focus the window
+				o.FocusWindow(windowIdx)
+				// Close sidebar and enter terminal mode
+				o.SidebarVisible = false
+				o.SidebarFocused = false
+				o.SidebarHoverTrigger = false
+				o.Mode = app.TerminalMode
+			}
+			// Click was in sidebar, consume it even if no item hit
+			return o, nil
+		}
+	}
+
 	// Check if click is in the dock area (always reserved)
 	if ((config.DockbarPosition == "bottom") && (Y >= o.Height-config.DockHeight)) || ((config.DockbarPosition == "top") && (Y <= config.DockHeight)) {
 		// Handle dock click only if there are minimized windows
@@ -341,6 +373,33 @@ func handleMouseMotion(msg tea.MouseMotionMsg, o *app.OS) (*app.OS, tea.Cmd) {
 	o.Y = mouse.Y
 	o.LastMouseX = mouse.X
 	o.LastMouseY = mouse.Y
+
+	// Check for sidebar hover trigger (left edge when sidebar hidden)
+	if o.IsSidebarHoverZone(mouse.X, mouse.Y) {
+		if !o.SidebarHoverTrigger {
+			o.SidebarHoverTrigger = true
+			o.SidebarVisible = true
+			o.SidebarFocused = true
+			// Select current focused window
+			o.SidebarSelectedIndex = o.FocusedWindow
+		}
+	} else if o.SidebarVisible {
+		sidebarWidth := o.GetSidebarWidth()
+		if mouse.X < sidebarWidth {
+			// Mouse is inside sidebar - keep it focused
+			o.SidebarFocused = true
+		} else if mouse.X > sidebarWidth+2 {
+			// Mouse left sidebar area - close if hover-triggered
+			if o.SidebarHoverTrigger {
+				o.SidebarHoverTrigger = false
+				o.SidebarVisible = false
+				o.SidebarFocused = false
+			} else {
+				// Opened via keybind - just unfocus but keep open
+				o.SidebarFocused = false
+			}
+		}
+	}
 
 	// Forward mouse motion to terminal if in terminal mode and window has mouse tracking
 	if o.Mode == app.TerminalMode {

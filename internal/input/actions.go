@@ -99,6 +99,9 @@ func (d *ActionDispatcher) registerHandlers() {
 	d.Register("toggle_tape_manager", handleToggleTapeManager)
 	d.Register("stop_recording", handleStopRecording)
 
+	// Sidebar actions
+	d.Register("toggle_sidebar", handleToggleSidebar)
+
 	// Navigation actions (arrow keys)
 	d.Register("nav_up", handleUpKey)
 	d.Register("nav_down", handleDownKey)
@@ -591,5 +594,14 @@ func handleStopRecording(_ tea.KeyPressMsg, o *app.OS) (*app.OS, tea.Cmd) {
 	if o.TapeRecorder != nil && o.TapeRecorder.IsRecording() {
 		o.TapeManagerStopRecording()
 	}
+	return o, nil
+}
+
+// ============================================================================
+// Sidebar Action Handlers
+// ============================================================================
+
+func handleToggleSidebar(_ tea.KeyPressMsg, o *app.OS) (*app.OS, tea.Cmd) {
+	o.ToggleSidebar()
 	return o, nil
 }

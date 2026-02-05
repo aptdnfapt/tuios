@@ -775,6 +775,11 @@ func (m *OS) subscribeToPTY(window *terminal.Window) {
 
 	ptyID := window.PTYID
 
+	// Initialize map if nil
+	if m.SubscribedPTYs == nil {
+		m.SubscribedPTYs = make(map[string]bool)
+	}
+
 	// Check if already subscribed
 	if m.SubscribedPTYs[ptyID] {
 		return

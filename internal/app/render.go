@@ -138,6 +138,14 @@ func (m *OS) GetCanvas(render bool) *lipgloss.Canvas {
 			dockLayer := m.renderDock()
 			layers = append(layers, dockLayer)
 		}
+
+		// Render sidebar if visible
+		if m.SidebarVisible {
+			sidebarLayer := m.renderSidebar()
+			if sidebarLayer != nil {
+				layers = append(layers, sidebarLayer)
+			}
+		}
 	}
 
 	canvas.AddLayers(layers...)

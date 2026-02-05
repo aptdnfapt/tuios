@@ -347,6 +347,7 @@ var ActionDescriptions = map[string]string{
 	"prefix_split_vertical":   "Split window vertically",
 	"prefix_rotate_split":     "Rotate split direction",
 	"prefix_equalize_splits":  "Equalize all splits",
+	"prefix_sidebar":          "Toggle window sidebar",
 
 	// Tape Prefix
 	"tape_prefix_manager": "Open tape manager",
@@ -357,6 +358,9 @@ var ActionDescriptions = map[string]string{
 	// Tape Actions
 	"toggle_tape_manager": "Toggle tape manager",
 	"stop_recording":      "Stop tape recording",
+
+	// Sidebar
+	"toggle_sidebar": "Toggle window sidebar",
 
 	// Debug Prefix
 	"debug_prefix_logs":       "Toggle log viewer",

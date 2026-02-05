@@ -204,6 +204,11 @@ type OS struct {
 	KittyPassthrough *KittyPassthrough
 	// Sixel Graphics passthrough for forwarding to host terminal
 	SixelPassthrough *SixelPassthrough
+	// Sidebar state for browser-style tab switching
+	SidebarVisible       bool // True when sidebar is shown
+	SidebarHoverTrigger  bool // True when mouse is hovering left edge (for auto-show)
+	SidebarSelectedIndex int  // Currently highlighted item for keyboard nav (-1 = none)
+	SidebarFocused       bool // True when sidebar has keyboard focus
 }
 
 // Notification represents a temporary notification message.
