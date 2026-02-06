@@ -70,18 +70,19 @@ func (m *OS) CalculateSidebarLayout() SidebarLayout {
 	sort.Ints(workspaces)
 
 	// Match renderSidebar exactly:
-	// Line 0: "WINDOWS" header
+	// Line 0: Title "Windows"
 	// Line 1: blank
-	currentY := 2
+	// +1 for border
+	currentY := 3
 
 	for wsIdx, ws := range workspaces {
 		indices := workspaceWindows[ws]
 
-		// Workspace header line (e.g., "--- Workspace 1 ---")
+		// Workspace header line
 		layout.WorkspaceY[ws] = currentY
 		currentY++
 
-		// Window items in this workspace (no blank line after workspace header)
+		// Window items in this workspace
 		for _, idx := range indices {
 			layout.ItemPositions = append(layout.ItemPositions, SidebarItemPosition{
 				WindowIndex: idx,
@@ -101,6 +102,7 @@ func (m *OS) CalculateSidebarLayout() SidebarLayout {
 }
 
 // renderSidebar renders the browser-style sidebar with window list
+// Uses same design language as dock and help overlays
 func (m *OS) renderSidebar() *lipgloss.Layer {
 	if !m.SidebarVisible {
 		return nil
@@ -110,62 +112,39 @@ func (m *OS) renderSidebar() *lipgloss.Layer {
 	sidebarHeight := m.GetRenderHeight()
 	topMargin := m.GetTopMargin()
 
-	// Sidebar container style
+	// Use project's standard colors
+	bgColor := lipgloss.Color("#1a1a2e")     // Same as time overlay, which-key
+	borderColor := lipgloss.Color("#303040") // Same as dock separator
+	titleColor := lipgloss.Color("14")       // Cyan - same as help titles
+	mutedColor := lipgloss.Color("#808090")  // Same as dock muted
+
+	// Sidebar container - rounded border like help overlay
 	containerStyle := lipgloss.NewStyle().
 		Width(sidebarWidth).
 		Height(sidebarHeight - topMargin).
-		Background(lipgloss.Color("#1a1a2e")).
-		BorderRight(true).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("#3a3a5e"))
+		Background(bgColor).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor)
 
-	// Header style
-	headerStyle := lipgloss.NewStyle().
-		Width(sidebarWidth-2).
-		Foreground(lipgloss.Color("#ffffff")).
-		Background(lipgloss.Color("#2a2a4e")).
+	// Title style - matches help overlay title
+	titleStyle := lipgloss.NewStyle().
+		Width(sidebarWidth-4).
+		Foreground(titleColor).
 		Bold(true).
-		Padding(0, 1).
-		Align(lipgloss.Center)
+		Padding(0, 1)
 
-	// Workspace header style
+	// Workspace header - muted like dock sections
 	workspaceStyle := lipgloss.NewStyle().
-		Width(sidebarWidth-2).
-		Foreground(lipgloss.Color("#808090")).
-		Bold(true).
+		Width(sidebarWidth-4).
+		Foreground(mutedColor).
 		Padding(0, 1)
 
-	// Window item base style
-	itemBaseStyle := lipgloss.NewStyle().
-		Width(sidebarWidth-2).
-		Padding(0, 1)
-
-	// Selected item style (keyboard nav highlight)
-	selectedStyle := itemBaseStyle.
-		Background(lipgloss.Color("#4865f2")).
-		Foreground(lipgloss.Color("#ffffff")).
-		Bold(true)
-
-	// Focused window style (not selected but is the focused window)
-	focusedStyle := itemBaseStyle.
-		Background(lipgloss.Color("#3a3a5e")).
-		Foreground(lipgloss.Color("#ffffff"))
-
-	// Normal item style
-	normalStyle := itemBaseStyle.
-		Foreground(lipgloss.Color("#a0a0b0"))
-
-	// Minimized item style
-	minimizedStyle := itemBaseStyle.
-		Foreground(lipgloss.Color("#606070")).
-		Italic(true)
-
-	// Build sidebar content
+	// Build content
 	var lines []string
 
-	// Header
-	lines = append(lines, headerStyle.Render("WINDOWS"))
-	lines = append(lines, "") // blank line
+	// Title
+	lines = append(lines, titleStyle.Render("Windows"))
+	lines = append(lines, "")
 
 	// Group windows by workspace
 	workspaceWindows := make(map[int][]int)
@@ -173,92 +152,141 @@ func (m *OS) renderSidebar() *lipgloss.Layer {
 		workspaceWindows[w.Workspace] = append(workspaceWindows[w.Workspace], i)
 	}
 
-	// Get sorted workspace numbers
+	// Sort workspaces
 	workspaces := make([]int, 0, len(workspaceWindows))
 	for ws := range workspaceWindows {
 		workspaces = append(workspaces, ws)
 	}
 	sort.Ints(workspaces)
 
-	// Render each workspace section
+	// Pill characters from config (same as dock)
+	leftPill := config.GetDockPillLeftChar()
+	rightPill := config.GetDockPillRightChar()
+
+	// Render each workspace
 	for wsIdx, ws := range workspaces {
 		indices := workspaceWindows[ws]
 
 		// Workspace header
-		wsIndicator := ""
+		wsMarker := ""
 		if ws == m.CurrentWorkspace {
-			wsIndicator = " *" // current workspace marker
+			wsMarker = "*"
 		}
-		wsHeader := fmt.Sprintf("--- Workspace %d%s ---", ws, wsIndicator)
+		wsHeader := fmt.Sprintf(" Workspace %d %s", ws, wsMarker)
 		lines = append(lines, workspaceStyle.Render(wsHeader))
 
-		// Window items in this workspace
+		// Window items
 		for _, idx := range indices {
 			w := m.Windows[idx]
 
-			// Get display name (custom name or title, truncated)
+			// Get display name
 			displayName := w.CustomName
 			if displayName == "" {
 				displayName = w.Title
 			}
-			maxNameLen := sidebarWidth - 8 // leave room for number and padding
-			if len(displayName) > maxNameLen {
-				displayName = displayName[:maxNameLen-3] + "..."
+			if displayName == "" {
+				displayName = "terminal"
 			}
 
-			// Format: "N  title" where N is window number
-			windowNum := idx + 1
-			itemText := fmt.Sprintf("%d  %s", windowNum, displayName)
-
-			// Add minimized indicator
-			if w.Minimized {
-				itemText = fmt.Sprintf("%d  [m] %s", windowNum, displayName)
+			// Truncate if needed
+			maxLen := sidebarWidth - 12
+			if len(displayName) > maxLen {
+				displayName = displayName[:maxLen-1] + "…"
 			}
 
-			// Choose style based on state
-			var styledItem string
+			// Determine colors based on state
+			var pillBg, pillFg, textFg string
+			isBold := false
+
 			if m.SidebarFocused && idx == m.SidebarSelectedIndex {
-				// Keyboard-selected item (highest priority)
-				styledItem = selectedStyle.Render(itemText)
+				// Selected - blue pill (like dock focused)
+				pillBg = "#4865f2"
+				pillFg = "#ffffff"
+				textFg = "#ffffff"
+				isBold = true
 			} else if idx == m.FocusedWindow && w.Workspace == m.CurrentWorkspace {
-				// Focused window in current workspace
-				styledItem = focusedStyle.Render(itemText)
+				// Focused but not selected - highlight bg
+				pillBg = "#2a2a3e"
+				pillFg = "#a0a0b0"
+				textFg = "#a0a0b0"
 			} else if w.Minimized {
-				// Minimized window
-				styledItem = minimizedStyle.Render(itemText)
+				// Minimized - muted
+				pillBg = "#1a1a2e"
+				pillFg = "#808090"
+				textFg = "#808090"
 			} else {
-				// Normal window
-				styledItem = normalStyle.Render(itemText)
+				// Normal
+				pillBg = "#1a1a2e"
+				pillFg = "#a0a0b0"
+				textFg = "#a0a0b0"
 			}
 
-			lines = append(lines, styledItem)
+			// Build pill-style item (like dock items)
+			numStr := fmt.Sprintf(" %d ", idx+1)
+
+			leftCircle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(pillBg)).
+				Render(leftPill)
+
+			numLabel := lipgloss.NewStyle().
+				Background(lipgloss.Color(pillBg)).
+				Foreground(lipgloss.Color(pillFg)).
+				Bold(isBold).
+				Render(numStr)
+
+			rightCircle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(pillBg)).
+				Render(rightPill)
+
+			nameStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(textFg)).
+				Bold(isBold)
+
+			// Add minimized marker
+			prefix := ""
+			if w.Minimized {
+				prefix = "[m] "
+			}
+
+			itemLine := fmt.Sprintf(" %s%s%s %s%s",
+				leftCircle, numLabel, rightCircle,
+				prefix, nameStyle.Render(displayName))
+
+			lines = append(lines, itemLine)
 		}
 
-		// Add spacing between workspaces (except last)
+		// Spacing between workspaces
 		if wsIdx < len(workspaces)-1 {
 			lines = append(lines, "")
 		}
 	}
 
-	// If no windows, show placeholder
+	// Empty state
 	if len(m.Windows) == 0 {
 		emptyStyle := lipgloss.NewStyle().
-			Width(sidebarWidth-2).
-			Foreground(lipgloss.Color("#606070")).
+			Width(sidebarWidth-4).
+			Foreground(mutedColor).
 			Italic(true).
 			Padding(0, 1).
 			Align(lipgloss.Center)
+		lines = append(lines, "")
 		lines = append(lines, emptyStyle.Render("No windows"))
 		lines = append(lines, emptyStyle.Render("Press 'n' to create"))
 	}
 
-	// Join all lines
-	content := strings.Join(lines, "\n")
+	// Footer hint - like help overlay
+	lines = append(lines, "")
+	footerStyle := lipgloss.NewStyle().
+		Width(sidebarWidth-4).
+		Foreground(mutedColor).
+		Italic(true).
+		Padding(0, 1)
+	lines = append(lines, footerStyle.Render("j/k:nav  Enter:select  q:close"))
 
-	// Apply container style
+	content := strings.Join(lines, "\n")
 	sidebar := containerStyle.Render(content)
 
-	// Position sidebar on the left
+	// Position
 	yPos := topMargin
 	if config.DockbarPosition == "top" {
 		yPos = config.DockHeight
@@ -342,7 +370,7 @@ func (m *OS) CloseSidebar() {
 
 // FindSidebarItemClicked returns the window index if a sidebar item was clicked, -1 otherwise
 func (m *OS) FindSidebarItemClicked(x, y int) int {
-	if !m.SidebarVisible {
+	if !m.SidebarVisible || len(m.Windows) == 0 {
 		return -1
 	}
 
@@ -353,21 +381,45 @@ func (m *OS) FindSidebarItemClicked(x, y int) int {
 		return -1
 	}
 
-	// Account for top margin in Y coordinate
+	// Simple approach: just check all windows and return based on click Y
+	// The sidebar starts after top margin, has 1 border, title, blank, then items
 	topMargin := m.GetTopMargin()
 	if config.DockbarPosition == "top" {
 		topMargin = config.DockHeight
 	}
 
-	// Adjust Y to be relative to sidebar content
-	relativeY := y - topMargin
+	// Sidebar content starts at: topMargin + 1 (border) + 1 (title) + 1 (blank) = topMargin + 3
+	// Then workspace headers and items
+	// For simplicity, just iterate and find by position
 
-	layout := m.CalculateSidebarLayout()
+	// Group windows by workspace (same as render)
+	workspaceWindows := make(map[int][]int)
+	for i, w := range m.Windows {
+		workspaceWindows[w.Workspace] = append(workspaceWindows[w.Workspace], i)
+	}
 
-	// Check each item position
-	for _, item := range layout.ItemPositions {
-		if relativeY >= item.StartY && relativeY < item.EndY {
-			return item.WindowIndex
+	workspaces := make([]int, 0, len(workspaceWindows))
+	for ws := range workspaceWindows {
+		workspaces = append(workspaces, ws)
+	}
+	sort.Ints(workspaces)
+
+	// Calculate Y positions matching render
+	currentY := topMargin + 3 // border + title + blank
+
+	for wsIdx, ws := range workspaces {
+		indices := workspaceWindows[ws]
+		currentY++ // workspace header
+
+		for _, idx := range indices {
+			if y == currentY {
+				return idx
+			}
+			currentY++
+		}
+
+		if wsIdx < len(workspaces)-1 {
+			currentY++ // gap
 		}
 	}
 
